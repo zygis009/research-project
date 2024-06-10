@@ -1,3 +1,5 @@
 .idea/
 plots/
 data/VOC*
+runs/
+__pycache__/
