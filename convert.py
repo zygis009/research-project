@@ -52,7 +52,7 @@ class_dict = {'person': 0, 'bird': 1, 'cat': 2, 'cow': 3, 'dog': 4, 'horse': 5, 
               'aeroplane': 7, 'bicycle': 8, 'boat': 9, 'bus': 10, 'car': 11, 'motorbike': 12, 'train': 13,
               'bottle': 14, 'chair': 15, 'diningtable': 16, 'pottedplant': 17, 'sofa': 18, 'tvmonitor': 19}
 
-scratch_path = lambda x: os.path.join('/scratch/zliutkus', x)
+scratch_path = lambda x: os.path.join('.', x)
 
 # Clean up data directory
 if os.path.exists(scratch_path('data/VOC')):
@@ -75,6 +75,10 @@ try:
     os.mkdir(scratch_path('data/VOC/train/labels'))
     os.makedirs(scratch_path('data/VOC/val/images'))
     os.mkdir(scratch_path('data/VOC/val/labels'))
+    os.makedirs(scratch_path('data/VOC/ss-1/images'))
+    os.mkdir(scratch_path('data/VOC/ss-1/labels'))
+    os.makedirs(scratch_path('data/VOC/ss-2/images'))
+    os.mkdir(scratch_path('data/VOC/ss-2/labels'))
 except OSError as error:
     print(error)
 

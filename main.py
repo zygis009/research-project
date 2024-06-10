@@ -1,12 +1,47 @@
 import os
 
 import torch
+import torchvision
 from ultralytics import YOLO
 from ultralytics.utils import ops
 import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+
+
+def partition_arrays(label_dict):
+    # Convert dictionary to list of arrays and list of keys
+    keys = list(label_dict.keys())
+    arrays = np.array(list(label_dict.values()))
+
+    # Calculate the total sum of all arrays
+    total_sum = np.sum(arrays, axis=0)
+    num_classes = len(total_sum)
+
+    # Initialize sums for the two partitions
+    sum1 = np.zeros(num_classes)
+    sum2 = np.zeros(num_classes)
+
+    # Partitions
+    partition1 = []
+    partition2 = []
+
+    # Sort arrays based on their total counts in descending order
+    sorted_indices = np.argsort(-np.sum(arrays, axis=1))
+
+    for idx in sorted_indices:
+        array = arrays[idx]
+        key = keys[idx]
+        # Determine which partition to add the current array to
+        if np.sum(np.abs((sum1 + array) - sum2)) < np.sum(np.abs(sum1 - (sum2 + array))):
+            sum1 += array
+            partition1.append(key)
+        else:
+            sum2 += array
+            partition2.append(key)
+
+    return partition1, partition2
 
 
 def adjust_gumbel_softmax(params, t=1.0):
@@ -152,6 +187,43 @@ def read_total_image_counts(path):
                 total.append(int(line.split()[0]))
     return total
 
+
+"""
+Practise ensemble pseudo-labeling example
+"""
+
+m1 = YOLO('dt/train_dt_10_1/weights/best.pt')
+m2 = YOLO('dt/train_dt_10_2/weights/best.pt')
+
+img = 'bus.jpg'
+r1 = m1.predict(source=img)
+r2 = m2.predict(source=img)
+
+max_wh = 7680
+cls1 = [r.boxes.cls for r in r1]
+boxes1 = [r.boxes.xyxy for r in r1]
+conf1 = [r.boxes.conf for r in r1]
+bwhn1 = [r.boxes.xywhn for r in r1]
+cls2 = [r.boxes.cls for r in r2]
+boxes2 = [r.boxes.xyxy for r in r2]
+conf2 = [r.boxes.conf for r in r2]
+bwhn2 = [r.boxes.xywhn for r in r2]
+
+cls = torch.cat((torch.cat(cls1, dim=0), torch.cat(cls2, dim=0)), dim=0)
+boxes = torch.cat((torch.cat(boxes1, dim=0), torch.cat(boxes2, dim=0)), dim=0)
+conf = torch.cat((torch.cat(conf1, dim=0), torch.cat(conf2, dim=0)), dim=0)
+bwhn = torch.cat((torch.cat(bwhn1, dim=0), torch.cat(bwhn2, dim=0)), dim=0)
+
+res = torch.cat((cls.unsqueeze(1), bwhn), dim=1)
+
+boxes_nms = boxes[:, :4] + cls[:, None] * max_wh
+i = torchvision.ops.nms(boxes_nms, conf, 0.7)
+res = res[i]
+with open('eg-res.txt', 'w') as file:
+    for t in res:
+        line = tuple(t.tolist())
+        file.write(("%g " * len(line)).rstrip() % line)
+        file.write('\n')
 
 """
 Teacher-Student vs Confidence Scaling

@@ -1,3 +1,4 @@
+import torchvision
 import ultralytics.engine.results
 from ultralytics import YOLO
 import torch
@@ -5,9 +6,10 @@ import os
 import random
 import shutil
 import numpy as np
+import labels
 
-home_path = lambda x: os.path.join('/home/zliutkus', x)
-scratch_path = lambda x: os.path.join('/scratch/zliutkus/research-project', x)
+home_path = lambda x: os.path.join('.', x)
+scratch_path = lambda x: os.path.join('.', x)
 
 class_dict = {'person': 0, 'bird': 1, 'cat': 2, 'cow': 3, 'dog': 4, 'horse': 5, 'sheep': 6,
               'aeroplane': 7, 'bicycle': 8, 'boat': 9, 'bus': 10, 'car': 11, 'motorbike': 12, 'train': 13,
@@ -18,6 +20,9 @@ threshold = 'dynamic_simple'  # 'static', 'dynamic_simple', 'dynamic'
 class_weights = {0: 0., 1: 0., 2: 0., 3: 0., 4: 0., 5: 0., 6: 0., 7: 0., 8: 0., 9: 0., 10: 0., 11: 0., 12: 0., 13: 0.,
                  14: 0.,
                  15: 0., 16: 0., 17: 0., 18: 0., 19: 0.}
+
+ensemble = True
+max_wh = 7680
 
 
 def setup(size=250):
@@ -56,9 +61,21 @@ def reset():
         shutil.move(scratch_path('data/VOC/semi-supervised/images/' + name),
                     scratch_path('data/VOC/train/images/' + name))
         os.remove(scratch_path('data/VOC/semi-supervised/labels/' + name.replace('.jpg', '.txt')))
+    for name in os.listdir(scratch_path('data/VOC/ss-1/images/')):
+        shutil.move(scratch_path('data/VOC/ss-1/images/' + name),
+                    scratch_path('data/VOC/train/images/' + name))
+        os.remove(scratch_path('data/VOC/ss-1/labels/' + name.replace('.jpg', '.txt')))
+    for name in os.listdir(scratch_path('data/VOC/ss-2/images/')):
+        shutil.move(scratch_path('data/VOC/ss-2/images/' + name),
+                    scratch_path('data/VOC/train/images/' + name))
+        os.remove(scratch_path('data/VOC/ss-2/labels/' + name.replace('.jpg', '.txt')))
 
     if os.path.isfile(scratch_path('data/VOC/semi-supervised/labels.cache')):
         os.remove(scratch_path('data/VOC/semi-supervised/labels.cache'))
+    if os.path.isfile(scratch_path('data/VOC/ss-1/labels.cache')):
+        os.remove(scratch_path('data/VOC/ss-1/labels.cache'))
+    if os.path.isfile(scratch_path('data/VOC/ss-2/labels.cache')):
+        os.remove(scratch_path('data/VOC/ss-2/labels.cache'))
 
 
 def static_threshold(model, conf=0.95):
@@ -158,30 +175,185 @@ def student_iteration(teacher):
     return student
 
 
-# Setup data subset for semi-supervised learning
+def ensemble_iteration(teacher, label, data):
+    # Train student model
+    print("New base weights: {}".format(os.path.join(teacher.trainer.save_dir, 'weights', 'last.pt')))
+    student = YOLO(os.path.join(teacher.trainer.save_dir, 'weights', 'last.pt'))
+    student.train(data=data, epochs=1, device='cpu', workers=0, pretrained=True,
+                  project=home_path('runs/train'),
+                  name=label)  # Change save dir project and name, where save_dir=project/name
+    return student
+
+
+def partition_arrays(label_dict):
+    # Convert dictionary to list of arrays and list of keys
+    keys = list(label_dict.keys())
+    arrays = np.array(list(label_dict.values()))
+
+    # Calculate the total sum of all arrays
+    total_sum = np.sum(arrays, axis=0)
+    num_classes = len(total_sum)
+
+    # Initialize sums for the two partitions
+    sum1 = np.zeros(num_classes)
+    sum2 = np.zeros(num_classes)
+
+    # Partitions
+    partition1 = []
+    partition2 = []
+
+    # Sort arrays based on their total counts in descending order
+    sorted_indices = np.argsort(-np.sum(arrays, axis=1))
+
+    for idx in sorted_indices:
+        array = arrays[idx]
+        key = keys[idx]
+        # Determine which partition to add the current array to
+        if np.sum(np.abs((sum1 + array) - sum2)) < np.sum(np.abs(sum1 - (sum2 + array))):
+            sum1 += array
+            partition1.append(key)
+        else:
+            sum2 += array
+            partition2.append(key)
+
+    return partition1, partition2
+
+
+# Reset data
 reset()
-setup(570)  # 5717 training images total, 570 - approx. 10%, 1140 - approx. 20%, 2850 - approx. 50%.
-torch.cuda.set_device(0)
+# torch.cuda.set_device(0)
 
-# Train teacher model
-teacher = YOLO('yolov8n.pt')
-teacher.train(data='VOC.yaml', epochs=100, device=0, workers=0, project=home_path('runs/train'),
-              name='train_dt_10_')  # Change save dir project and name, where save_dir=project/name
+if ensemble:
+    # Load labels
+    u = np.unique(np.array([v for v in labels.ts_10.values()]))
+    ls = {}
 
-# Iteratively assign pseudo-labels and train student model
-n = 3
-for _ in range(n):
-    if len(os.listdir(scratch_path('data/VOC/train/images'))) == 0:
-        break
-    results = static_threshold(teacher) if threshold == 'static' else dynamic_threshold_simple(
-        teacher) if threshold == 'dynamic_simple' else dynamic_threshold(teacher)
-    added = 0
-    for result in results:
-        if result.boxes.shape[0] > 0:
-            added = added + 1
-            result.save_txt(scratch_path(
-                'data/VOC/semi-supervised/labels/' + os.path.basename(result.path).replace('.jpg', '.txt')))
-            shutil.move(scratch_path('data/VOC/train/images/' + os.path.basename(result.path)),
-                        scratch_path('data/VOC/semi-supervised/images/' + os.path.basename(result.path)))
-    print(added, ' images passed the threshold and were added to the training set.')
-    teacher = student_iteration(teacher)
+    for label in u:
+        with open(scratch_path('data/VOC/train/labels/' + label + '.txt'), 'r') as file:
+            cnt = [0 for _ in range(20)]
+            for c in file:
+                cnt[int(c.split()[0])] += 1
+            ls[label] = cnt
+
+    # Partition labels
+    p1, p2 = partition_arrays(ls)
+
+    # Move partitions to respective folders
+    for label in p1:
+        shutil.move(scratch_path('data/VOC/train/images/' + label + '.jpg'),
+                    scratch_path('data/VOC/ss-1/images/' + label + '.jpg'))
+        shutil.copy(scratch_path('data/VOC/train/labels/' + label + '.txt'),
+                    scratch_path('data/VOC/ss-1/labels/' + label + '.txt'))
+
+    for label in p2:
+        shutil.move(scratch_path('data/VOC/train/images/' + label + '.jpg'),
+                    scratch_path('data/VOC/ss-2/images/' + label + '.jpg'))
+        shutil.copy(scratch_path('data/VOC/train/labels/' + label + '.txt'),
+                    scratch_path('data/VOC/ss-2/labels/' + label + '.txt'))
+
+    # Train teachers
+    t1 = YOLO('yolov8n.pt')
+    t1.train(data='VOC1.yaml', epochs=1, device='cpu', workers=0, project=home_path('runs/train'),
+             name='teacher_1')  # Change save dir project and name, where save_dir=project/name
+    t2 = YOLO('yolov8n.pt')
+    t2.train(data='VOC2.yaml', epochs=1, device='cpu', workers=0, project=home_path('runs/train'),
+             name='teacher_2')  # Change save dir project and name, where save_dir=project/name
+
+    # Iteratively assign pseudo-labels and train student model
+    n = 3
+    for k in range(n):
+        if len(os.listdir(scratch_path('data/VOC/train/images'))) == 0:
+            break
+        r1 = static_threshold(t1)
+        r2 = static_threshold(t2)
+
+        # Combine results from both teachers
+        r = zip(r1, r2)
+        added = 0
+        size = len(os.listdir(scratch_path('data/VOC/train/images')))
+        for i, (x, y) in enumerate(r, start=1):
+            assert x.path == y.path
+            print('processing ', i, '/', size, ' ', x.path)
+            l = os.path.basename(x.path).replace('.jpg', '')
+
+            cls = torch.cat((x.boxes.cls, y.boxes.cls), dim=0)
+            boxes = torch.cat((x.boxes.xyxy, y.boxes.xyxy), dim=0)
+            conf = torch.cat((x.boxes.conf, y.boxes.conf), dim=0)
+            bwhn = torch.cat((x.boxes.xywhn, y.boxes.xywhn), dim=0)
+
+            bnms = boxes[:, :4] + cls[:, None] * max_wh
+            idx = torchvision.ops.nms(bnms, conf, 0.7)
+            res = torch.cat((cls.unsqueeze(1), bwhn), dim=1)
+            res = res[idx]
+            if res.shape[0] > 0:
+                added += 1
+                cnt = [0 for _ in range(20)]
+                with open(scratch_path('data/VOC/semi-supervised/labels/' + l + '.txt'),
+                          'w') as file:
+                    for t in res:
+                        cnt[int(t[0].item())] += 1
+                        line = tuple(t.tolist())
+                        file.write(("%g " * len(line)).rstrip() % line)
+                        file.write('\n')
+                shutil.move(scratch_path('data/VOC/train/images/' + l + '.jpg'),
+                            scratch_path('data/VOC/semi-supervised/images/' + l + '.jpg'))
+                ls[l] = cnt
+
+        # Partition labels
+        for label in os.listdir(scratch_path('data/VOC/ss-1/images')):
+            label = label.replace('.jpg', '')
+            shutil.move(scratch_path('data/VOC/ss-1/images/' + label + '.jpg'),
+                        scratch_path('data/VOC/semi-supervised/images/' + label + '.jpg'))
+            shutil.move(scratch_path('data/VOC/ss-1/labels/' + label + '.txt'),
+                        scratch_path('data/VOC/semi-supervised/labels/' + label + '.txt'))
+        for label in os.listdir(scratch_path('data/VOC/ss-2/images')):
+            label = label.replace('.jpg', '')
+            shutil.move(scratch_path('data/VOC/ss-2/images/' + label + '.jpg'),
+                        scratch_path('data/VOC/semi-supervised/images/' + label + '.jpg'))
+            shutil.move(scratch_path('data/VOC/ss-2/labels/' + label + '.txt'),
+                        scratch_path('data/VOC/semi-supervised/labels/' + label + '.txt'))
+
+        p1, p2 = partition_arrays(ls)
+
+        for label in p1:
+            shutil.move(scratch_path('data/VOC/semi-supervised/images/' + label + '.jpg'),
+                        scratch_path('data/VOC/ss-1/images/' + label + '.jpg'))
+            shutil.move(scratch_path('data/VOC/semi-supervised/labels/' + label + '.txt'),
+                        scratch_path('data/VOC/ss-1/labels/' + label + '.txt'))
+        for label in p2:
+            shutil.move(scratch_path('data/VOC/semi-supervised/images/' + label + '.jpg'),
+                        scratch_path('data/VOC/ss-2/images/' + label + '.jpg'))
+            shutil.move(scratch_path('data/VOC/semi-supervised/labels/' + label + '.txt'),
+                        scratch_path('data/VOC/ss-2/labels/' + label + '.txt'))
+
+        print(added, ' images passed the threshold and were added to the training sets.')
+
+        # Train iteration
+        t1 = ensemble_iteration(t1, 'student'+str(k+1)+'_1', 'VOC1.yaml')
+        t2 = ensemble_iteration(t2, 'student'+str(k+1)+'_2', 'VOC2.yaml')
+
+else:
+    # Setup data subset for semi-supervised learning
+    setup(570)  # 5717 training images total, 570 - approx. 10%, 1140 - approx. 20%, 2850 - approx. 50%.
+    # Train teacher model
+    teacher = YOLO('yolov8n.pt')
+    teacher.train(data='VOC.yaml', epochs=100, device=0, workers=0, project=home_path('runs/train'),
+                  name='train_dt_10_')  # Change save dir project and name, where save_dir=project/name
+
+    # Iteratively assign pseudo-labels and train student model
+    n = 3
+    for _ in range(n):
+        if len(os.listdir(scratch_path('data/VOC/train/images'))) == 0:
+            break
+        results = static_threshold(teacher) if threshold == 'static' else dynamic_threshold_simple(
+            teacher) if threshold == 'dynamic_simple' else dynamic_threshold(teacher)
+        added = 0
+        for result in results:
+            if result.boxes.shape[0] > 0:
+                added = added + 1
+                result.save_txt(scratch_path(
+                    'data/VOC/semi-supervised/labels/' + os.path.basename(result.path).replace('.jpg', '.txt')))
+                shutil.move(scratch_path('data/VOC/train/images/' + os.path.basename(result.path)),
+                            scratch_path('data/VOC/semi-supervised/images/' + os.path.basename(result.path)))
+        print(added, ' images passed the threshold and were added to the training set.')
+        teacher = student_iteration(teacher)
