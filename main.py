@@ -8,6 +8,9 @@ import shutil
 import numpy as np
 import matplotlib.pyplot as plt
 import csv
+from PIL import Image
+from ultralytics.nn.tasks import Ensemble
+from torchmetrics.detection import MeanAveragePrecision
 
 
 def partition_arrays(label_dict):
@@ -187,43 +190,111 @@ def read_total_image_counts(path):
                 total.append(int(line.split()[0]))
     return total
 
+for i in ['1', '2', '3', '4']:
+    model = YOLO('ts/ts_10_'+i+'/weights/last.pt')
+    print(model.val(data='VOC.yaml').results_dict)
+"""
+Compute mAP using the torchmetrics library for the ensemble model (and naive teacher-student for comparison)
+"""
+# # for m in ['teacher', 'student1', 'student2', 'student3']:
+# #     model1 = YOLO('ensemble/ensemble_yolo_20/' + m + '_1/weights/last.pt')
+# #     model2 = YOLO('ensemble/ensemble_yolo_20/' + m + '_2/weights/last.pt')
+# #     r1 = model1.predict(source='data/VOC/val/images', stream=True, conf=0.001)
+# #     r2 = model2.predict(source='data/VOC/val/images', stream=True, conf=0.001)
+# #     r = zip(r1, r2)
+# #     preds = []
+# #     targets = []
+# #     for i, (x, y) in enumerate(r, start=1):
+# #         assert x.path == y.path
+# #         l = os.path.basename(x.path).replace('.jpg', '')
+# #         o = x.orig_shape
+# #         p = {}
+# #         t = {'boxes': [], 'labels': []}
+# #         with open('data/VOC/val/labels/' + l + '.txt', 'r') as file:
+# #             for line in file:
+# #                 line = line.split()
+# #                 t['boxes'].append(
+# #                     [float(line[1]) * o[1], float(line[2]) * o[0], float(line[3]) * o[1], float(line[4]) * o[0]])
+# #                 t['labels'].append(int(line[0]))
+# #         t['boxes'] = torch.Tensor(t['boxes'])
+# #         t['labels'] = torch.Tensor(t['labels']).int()
+# #         targets.append(t)
+# #         cls = torch.cat((x.boxes.cls, y.boxes.cls), dim=0)
+# #         boxes = torch.cat((x.boxes.xyxy, y.boxes.xyxy), dim=0)
+# #         conf = torch.cat((x.boxes.conf, y.boxes.conf), dim=0)
+# #         bwh = torch.cat((x.boxes.xywh, y.boxes.xywh), dim=0)
+# #
+# #         bnms = boxes[:, :4] + cls[:, None] * 7680
+# #         idx = torchvision.ops.nms(bnms, conf, 0.7)
+# #         p['boxes'] = bwh[idx]
+# #         p['scores'] = conf[idx]
+# #         p['labels'] = cls[idx].int()
+# #         preds.append(p)
+# for m in ['1', '2', '3', '4']:
+#     model = YOLO('ts/ts_50_'+m+'/weights/last.pt')
+#     results = model.predict(source='data/VOC/val/images', stream=True, conf=0.001)
+#     preds = []
+#     targets = []
+#     for r in results:
+#         l = os.path.basename(r.path).replace('.jpg', '')
+#         o = r.orig_shape
+#         p = {}
+#         t = {'boxes': [], 'labels': []}
+#         with open('data/VOC/val/labels/' + l + '.txt', 'r') as file:
+#             for line in file:
+#                 line = line.split()
+#                 t['boxes'].append(
+#                     [float(line[1]) * o[1], float(line[2]) * o[0], float(line[3]) * o[1], float(line[4]) * o[0]])
+#                 t['labels'].append(int(line[0]))
+#         t['boxes'] = torch.Tensor(t['boxes'])
+#         t['labels'] = torch.Tensor(t['labels']).int()
+#         targets.append(t)
+#         p['boxes'] = r.boxes.xywh
+#         p['scores'] = r.boxes.conf
+#         p['labels'] = r.boxes.cls.int()
+#         preds.append(p)
+#     metric = MeanAveragePrecision(iou_type='bbox', box_format='cxcywh')
+#     metric.update(preds, targets)
+#     from pprint import pprint
+#     print('Model: ', m)
+#     pprint(metric.compute())
 
 """
 Practise ensemble pseudo-labeling example
 """
 
-m1 = YOLO('dt/train_dt_10_1/weights/best.pt')
-m2 = YOLO('dt/train_dt_10_2/weights/best.pt')
-
-img = 'bus.jpg'
-r1 = m1.predict(source=img)
-r2 = m2.predict(source=img)
-
-max_wh = 7680
-cls1 = [r.boxes.cls for r in r1]
-boxes1 = [r.boxes.xyxy for r in r1]
-conf1 = [r.boxes.conf for r in r1]
-bwhn1 = [r.boxes.xywhn for r in r1]
-cls2 = [r.boxes.cls for r in r2]
-boxes2 = [r.boxes.xyxy for r in r2]
-conf2 = [r.boxes.conf for r in r2]
-bwhn2 = [r.boxes.xywhn for r in r2]
-
-cls = torch.cat((torch.cat(cls1, dim=0), torch.cat(cls2, dim=0)), dim=0)
-boxes = torch.cat((torch.cat(boxes1, dim=0), torch.cat(boxes2, dim=0)), dim=0)
-conf = torch.cat((torch.cat(conf1, dim=0), torch.cat(conf2, dim=0)), dim=0)
-bwhn = torch.cat((torch.cat(bwhn1, dim=0), torch.cat(bwhn2, dim=0)), dim=0)
-
-res = torch.cat((cls.unsqueeze(1), bwhn), dim=1)
-
-boxes_nms = boxes[:, :4] + cls[:, None] * max_wh
-i = torchvision.ops.nms(boxes_nms, conf, 0.7)
-res = res[i]
-with open('eg-res.txt', 'w') as file:
-    for t in res:
-        line = tuple(t.tolist())
-        file.write(("%g " * len(line)).rstrip() % line)
-        file.write('\n')
+# m1 = YOLO('dt/train_dt_10_1/weights/best.pt')
+# m2 = YOLO('dt/train_dt_10_2/weights/best.pt')
+#
+# img = 'bus.jpg'
+# r1 = m1.predict(source=img)
+# r2 = m2.predict(source=img)
+#
+# max_wh = 7680
+# cls1 = [r.boxes.cls for r in r1]
+# boxes1 = [r.boxes.xyxy for r in r1]
+# conf1 = [r.boxes.conf for r in r1]
+# bwhn1 = [r.boxes.xywhn for r in r1]
+# cls2 = [r.boxes.cls for r in r2]
+# boxes2 = [r.boxes.xyxy for r in r2]
+# conf2 = [r.boxes.conf for r in r2]
+# bwhn2 = [r.boxes.xywhn for r in r2]
+#
+# cls = torch.cat((torch.cat(cls1, dim=0), torch.cat(cls2, dim=0)), dim=0)
+# boxes = torch.cat((torch.cat(boxes1, dim=0), torch.cat(boxes2, dim=0)), dim=0)
+# conf = torch.cat((torch.cat(conf1, dim=0), torch.cat(conf2, dim=0)), dim=0)
+# bwhn = torch.cat((torch.cat(bwhn1, dim=0), torch.cat(bwhn2, dim=0)), dim=0)
+#
+# res = torch.cat((cls.unsqueeze(1), bwhn), dim=1)
+#
+# boxes_nms = boxes[:, :4] + cls[:, None] * max_wh
+# i = torchvision.ops.nms(boxes_nms, conf, 0.7)
+# res = res[i]
+# with open('eg-res.txt', 'w') as file:
+#     for t in res:
+#         line = tuple(t.tolist())
+#         file.write(("%g " * len(line)).rstrip() % line)
+#         file.write('\n')
 
 """
 Teacher-Student vs Confidence Scaling
@@ -232,9 +303,9 @@ Teacher-Student vs Confidence Scaling
 # x = ['Teacher', '1st Student', '2nd Student', '3rd Student']
 # handles = []
 # for i in ['10', '20', '50']:
-#     ts = read_total_object_counts('added_counts/ts-' + i + '-added.log')
+#     ts = read_total_object_counts('added_object_counts/ts-' + i + '-added.log')
 #     # ts = read_total_image_counts('outs_logs/ts-' + i + '.log')
-#     cs = read_total_object_counts('added_counts/cs-' + i + '-added.log')
+#     cs = read_total_object_counts('added_object_counts/cs-' + i + '-added.log')
 #     # cs = read_total_image_counts('colab_results/cs_' + i + '.out.log')
 #     if i == '10':
 #         ax.plot(np.cumsum(ts), label='Naive Teacher-Student', color='tab:blue')
@@ -256,9 +327,9 @@ Teacher-Student vs Confidence Scaling
 Image count - object count correlation plot
 """
 # for i in ['10', '20', '50']:
-#     objects_ts = read_total_object_counts('added_counts/ts-' + i + '-added.log')
+#     objects_ts = read_total_object_counts('added_object_counts/ts-' + i + '-added.log')
 #     images_ts = read_total_image_counts('outs_logs/ts-' + i + '.log')
-#     objects_dt = read_total_object_counts('added_counts/dt-' + i + '-added.log')
+#     objects_dt = read_total_object_counts('added_object_counts/dt-' + i + '-added.log')
 #     if i == '50':
 #         images_dt = read_total_image_counts('outs_logs/dt-' + i + '.log')
 #     else:
@@ -281,7 +352,7 @@ Plotting class count barchart
 # class_names = ['person', 'bird', 'cat', 'cow', 'dog', 'horse', 'sheep', 'aeroplane', 'bicycle', 'boat', 'bus', 'car',
 #                'motorbike', 'train', 'bottle', 'chair', 'dining table', 'potted plant', 'sofa', 'tv/monitor']
 # for i in ['10', '20', '50']:
-#     counts = read_class_counts('added_counts/cs_dt-' + i + '-added.log')
+#     counts = read_class_counts('added_object_counts/cs_dt-' + i + '-added.log')
 #     print('{total: ', sum(counts.values()), ', counts: ', counts.values(), '}')
 #     fig, ax = plt.subplots()
 #     ax.bar(counts.keys(), counts.values())
