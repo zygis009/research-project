@@ -190,9 +190,13 @@ def read_total_image_counts(path):
                 total.append(int(line.split()[0]))
     return total
 
-for i in ['1', '2', '3', '4']:
-    model = YOLO('ts/ts_10_'+i+'/weights/last.pt')
-    print(model.val(data='VOC.yaml').results_dict)
+
+"""
+Count added objects for the ensemble experiments
+"""
+
+
+
 """
 Compute mAP using the torchmetrics library for the ensemble model (and naive teacher-student for comparison)
 """
@@ -304,7 +308,7 @@ Teacher-Student vs Confidence Scaling
 # handles = []
 # for i in ['10', '20', '50']:
 #     ts = read_total_object_counts('added_object_counts/ts-' + i + '-added.log')
-#     # ts = read_total_image_counts('outs_logs/ts-' + i + '.log')
+#     # ts = read_total_image_counts('delftblue_results/ts-' + i + '.log')
 #     cs = read_total_object_counts('added_object_counts/cs-' + i + '-added.log')
 #     # cs = read_total_image_counts('colab_results/cs_' + i + '.out.log')
 #     if i == '10':
@@ -328,10 +332,10 @@ Image count - object count correlation plot
 """
 # for i in ['10', '20', '50']:
 #     objects_ts = read_total_object_counts('added_object_counts/ts-' + i + '-added.log')
-#     images_ts = read_total_image_counts('outs_logs/ts-' + i + '.log')
+#     images_ts = read_total_image_counts('delftblue_results/ts-' + i + '.log')
 #     objects_dt = read_total_object_counts('added_object_counts/dt-' + i + '-added.log')
 #     if i == '50':
-#         images_dt = read_total_image_counts('outs_logs/dt-' + i + '.log')
+#         images_dt = read_total_image_counts('delftblue_results/dt-' + i + '.log')
 #     else:
 #         images_dt = read_total_image_counts('colab_results/dt_' + i + '.out.log')
 #     fig, ax = plt.subplots()
@@ -389,7 +393,7 @@ Extracting the class counts from the logs
 #             counts = {v: 0 for v in class_dict.values()}
 
 
-# with open('outs_logs/dt-50.log', 'r') as file:
+# with open('delftblue_results/dt-50.log', 'r') as file:
 #     flag = -1
 #     for line in file:
 #         if line.startswith('Before:'):
