@@ -11,6 +11,7 @@ import csv
 from PIL import Image
 from ultralytics.nn.tasks import Ensemble
 from torchmetrics.detection import MeanAveragePrecision
+import labels
 
 
 def partition_arrays(label_dict):
@@ -194,54 +195,86 @@ def read_total_image_counts(path):
 """
 Count added objects for the ensemble experiments
 """
-
-
+# for split in ['10', '20', '50']:
+#     for x in os.listdir('data/VOC/semi-supervised/images'):
+#         shutil.move('data/VOC/semi-supervised/images/' + x, 'data/VOC/train/images/' + x)
+#     print('\n\n\nSplit: Ensemble ' + split + '%\n')
+#     lb = labels.ts_10 if split == '10' else labels.ts_20 if split == '20' else labels.ts_50
+#     # Load labels
+#     u = np.unique(np.array([v for v in lb.values()]))
+#     ls = {}
+# 
+#     for label in u:
+#         with open('data/VOC/train/labels/' + label + '.txt', 'r') as file:
+#             cnt = [0 for _ in range(20)]
+#             for c in file:
+#                 cnt[int(c.split()[0])] += 1
+#             ls[label] = cnt
+#         shutil.move('data/VOC/train/images/' + label + '.jpg',
+#                     'data/VOC/semi-supervised/images/' + label + '.jpg')
+# 
+#     # Compute the counts
+#     counts = {v: 0 for v in range(20)}
+#     for v in ls.values():
+#         for i, c in enumerate(v):
+#             counts[i] += c
+#     print('{total: ', sum(counts.values()), ', counts: ', counts, '}')
+# 
+#     for m in ['teacher', 'student1', 'student2']:
+#         # Load models
+#         m1 = YOLO('trained_models/ensemble/ensemble_yolo_' + split + '/' + m + '_1/weights/last.pt')
+#         m2 = YOLO('trained_models/ensemble/ensemble_yolo_' + split + '/' + m + '_2/weights/last.pt')
+# 
+#         # Predict on the unlabeled data
+#         r1 = m1.predict(source='data/VOC/train/images', stream=True, conf=0.95, verbose=False)
+#         r2 = m2.predict(source='data/VOC/train/images', stream=True, conf=0.95, verbose=False)
+# 
+#         # Compute pseudo-labels
+#         r = zip(r1, r2)
+#         ls = {}
+#         for (x, y) in r:
+#             assert x.path == y.path
+#             l = os.path.basename(x.path).replace('.jpg', '')
+# 
+#             cls = torch.cat((x.boxes.cls, y.boxes.cls), dim=0)
+#             boxes = torch.cat((x.boxes.xyxy, y.boxes.xyxy), dim=0)
+#             conf = torch.cat((x.boxes.conf, y.boxes.conf), dim=0)
+#             bwhn = torch.cat((x.boxes.xywhn, y.boxes.xywhn), dim=0)
+# 
+#             bnms = boxes[:, :4] + cls[:, None] * 7860
+#             idx = torchvision.ops.nms(bnms, conf, 0.7)
+#             res = torch.cat((cls.unsqueeze(1), bwhn), dim=1)
+#             res = res[idx]
+#             if res.shape[0] > 0:
+#                 cnt = [0 for _ in range(20)]
+#                 for t in res:
+#                     cnt[int(t[0].item())] += 1
+#                 shutil.move('data/VOC/train/images/' + l + '.jpg',
+#                             'data/VOC/semi-supervised/images/' + l + '.jpg')
+#                 ls[l] = cnt
+# 
+#         # Compute the counts
+#         counts = {v: 0 for v in range(20)}
+#         for v in ls.values():
+#             for i, c in enumerate(v):
+#                 counts[i] += c
+#         print('{total: ', sum(counts.values()), ', counts: ', counts, '}')
 
 """
 Compute mAP using the torchmetrics library for the ensemble model (and naive teacher-student for comparison)
 """
-# # for m in ['teacher', 'student1', 'student2', 'student3']:
-# #     model1 = YOLO('ensemble/ensemble_yolo_20/' + m + '_1/weights/last.pt')
-# #     model2 = YOLO('ensemble/ensemble_yolo_20/' + m + '_2/weights/last.pt')
-# #     r1 = model1.predict(source='data/VOC/val/images', stream=True, conf=0.001)
-# #     r2 = model2.predict(source='data/VOC/val/images', stream=True, conf=0.001)
-# #     r = zip(r1, r2)
-# #     preds = []
-# #     targets = []
-# #     for i, (x, y) in enumerate(r, start=1):
-# #         assert x.path == y.path
-# #         l = os.path.basename(x.path).replace('.jpg', '')
-# #         o = x.orig_shape
-# #         p = {}
-# #         t = {'boxes': [], 'labels': []}
-# #         with open('data/VOC/val/labels/' + l + '.txt', 'r') as file:
-# #             for line in file:
-# #                 line = line.split()
-# #                 t['boxes'].append(
-# #                     [float(line[1]) * o[1], float(line[2]) * o[0], float(line[3]) * o[1], float(line[4]) * o[0]])
-# #                 t['labels'].append(int(line[0]))
-# #         t['boxes'] = torch.Tensor(t['boxes'])
-# #         t['labels'] = torch.Tensor(t['labels']).int()
-# #         targets.append(t)
-# #         cls = torch.cat((x.boxes.cls, y.boxes.cls), dim=0)
-# #         boxes = torch.cat((x.boxes.xyxy, y.boxes.xyxy), dim=0)
-# #         conf = torch.cat((x.boxes.conf, y.boxes.conf), dim=0)
-# #         bwh = torch.cat((x.boxes.xywh, y.boxes.xywh), dim=0)
-# #
-# #         bnms = boxes[:, :4] + cls[:, None] * 7680
-# #         idx = torchvision.ops.nms(bnms, conf, 0.7)
-# #         p['boxes'] = bwh[idx]
-# #         p['scores'] = conf[idx]
-# #         p['labels'] = cls[idx].int()
-# #         preds.append(p)
-# for m in ['1', '2', '3', '4']:
-#     model = YOLO('ts/ts_50_'+m+'/weights/last.pt')
-#     results = model.predict(source='data/VOC/val/images', stream=True, conf=0.001)
+# for m in ['teacher', 'student1', 'student2', 'student3']:
+#     model1 = YOLO('trained_models/ensemble/ensemble_yolo_10/' + m + '_1/weights/last.pt')
+#     model2 = YOLO('trained_models/ensemble/ensemble_yolo_10/' + m + '_2/weights/last.pt')
+#     r1 = model1.predict(source='data/VOC/val/images', stream=True, conf=0.001, verbose=False)
+#     r2 = model2.predict(source='data/VOC/val/images', stream=True, conf=0.001, verbose=False)
+#     r = zip(r1, r2)
 #     preds = []
 #     targets = []
-#     for r in results:
-#         l = os.path.basename(r.path).replace('.jpg', '')
-#         o = r.orig_shape
+#     for i, (x, y) in enumerate(r, start=1):
+#         assert x.path == y.path
+#         l = os.path.basename(x.path).replace('.jpg', '')
+#         o = x.orig_shape
 #         p = {}
 #         t = {'boxes': [], 'labels': []}
 #         with open('data/VOC/val/labels/' + l + '.txt', 'r') as file:
@@ -253,11 +286,41 @@ Compute mAP using the torchmetrics library for the ensemble model (and naive tea
 #         t['boxes'] = torch.Tensor(t['boxes'])
 #         t['labels'] = torch.Tensor(t['labels']).int()
 #         targets.append(t)
-#         p['boxes'] = r.boxes.xywh
-#         p['scores'] = r.boxes.conf
-#         p['labels'] = r.boxes.cls.int()
+#         cls = torch.cat((x.boxes.cls, y.boxes.cls), dim=0)
+#         boxes = torch.cat((x.boxes.xyxy, y.boxes.xyxy), dim=0)
+#         conf = torch.cat((x.boxes.conf, y.boxes.conf), dim=0)
+#         bwh = torch.cat((x.boxes.xywh, y.boxes.xywh), dim=0)
+# 
+#         bnms = boxes[:, :4] + cls[:, None] * 7680
+#         idx = torchvision.ops.nms(bnms, conf, 0.7)
+#         p['boxes'] = bwh[idx]
+#         p['scores'] = conf[idx]
+#         p['labels'] = cls[idx].int()
 #         preds.append(p)
-#     metric = MeanAveragePrecision(iou_type='bbox', box_format='cxcywh')
+# # for m in ['1', '2', '3', '4']:
+# #     model = YOLO('trained_models/ts/ts_50_'+m+'/weights/last.pt')
+# #     results = model.predict(source='data/VOC/val/images', stream=True, conf=0.001)
+# #     preds = []
+# #     targets = []
+# #     for r in results:
+# #         l = os.path.basename(r.path).replace('.jpg', '')
+# #         o = r.orig_shape
+# #         p = {}
+# #         t = {'boxes': [], 'labels': []}
+# #         with open('data/VOC/val/labels/' + l + '.txt', 'r') as file:
+# #             for line in file:
+# #                 line = line.split()
+# #                 t['boxes'].append(
+# #                     [float(line[1]) * o[1], float(line[2]) * o[0], float(line[3]) * o[1], float(line[4]) * o[0]])
+# #                 t['labels'].append(int(line[0]))
+# #         t['boxes'] = torch.Tensor(t['boxes'])
+# #         t['labels'] = torch.Tensor(t['labels']).int()
+# #         targets.append(t)
+# #         p['boxes'] = r.boxes.xywh
+# #         p['scores'] = r.boxes.conf
+# #         p['labels'] = r.boxes.cls.int()
+# #         preds.append(p)
+#     metric = MeanAveragePrecision(iou_type='bbox', box_format='cxcywh', class_metrics=True)
 #     metric.update(preds, targets)
 #     from pprint import pprint
 #     print('Model: ', m)
@@ -267,8 +330,8 @@ Compute mAP using the torchmetrics library for the ensemble model (and naive tea
 Practise ensemble pseudo-labeling example
 """
 
-# m1 = YOLO('dt/train_dt_10_1/weights/best.pt')
-# m2 = YOLO('dt/train_dt_10_2/weights/best.pt')
+# m1 = YOLO('trained_models/dt/train_dt_10_1/weights/best.pt')
+# m2 = YOLO('trained_models/dt/train_dt_10_2/weights/best.pt')
 #
 # img = 'bus.jpg'
 # r1 = m1.predict(source=img)
@@ -446,7 +509,7 @@ Extracting the class counts from the logs
 """
 Plotting the class counts
 """
-# Data
+# # Data
 # categories = ['Naive\nTeacher-Student', 'Dynamic\nThresholds', 'Confidence\nScaling',
 #               'Confidence Scaling\n+\nDynamic Thresholds']
 # subcategories = ['Teacher', '1st Student', '2nd Student', '3rd Student']
@@ -617,7 +680,7 @@ Plotting the mAP results of the dynamic threshold and teacher-student experiment
 #     ys50 = []  # data['cs'][i]['mAP50']
 #     ys50_95 = []  # data['cs'][i]['mAP50-95']
 #     for j in [1, 2, 3, 4]:
-#         path = 'ts/ts_' + str(i) + '_' + str(j) + '/results.csv'
+#         path = 'trained_models/ts/ts_' + str(i) + '_' + str(j) + '/results.csv'
 #         ys1, ys2 = read_results_csv(path)
 #         ys50.append(ys1[-1])
 #         ys50_95.append(ys2[-1])
@@ -660,7 +723,7 @@ Plotting mAP per iteration for the teacher-student experiment
 #     y50 = []
 #     y50_95 = []
 #     for j in [1, 2, 3, 4]:
-#         path = 'ts/ts_' + str(i) + '_' + str(j) + '/results.csv'
+#         path = 'trained_models/ts/ts_' + str(i) + '_' + str(j) + '/results.csv'
 #         ys50, ys50_95 = read_results_csv(path)
 #         y50.extend(ys50)
 #         y50_95.extend(ys50_95)
