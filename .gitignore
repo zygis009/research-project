@@ -3,3 +3,4 @@ plots/
 data/VOC*
 runs/
 __pycache__/
+yolov8n.pt
