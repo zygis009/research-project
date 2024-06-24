@@ -16,13 +16,18 @@ class_dict = {'person': 0, 'bird': 1, 'cat': 2, 'cow': 3, 'dog': 4, 'horse': 5, 
               'bottle': 14, 'chair': 15, 'diningtable': 16, 'pottedplant': 17, 'sofa': 18, 'tvmonitor': 19}
 reverse_class_dict = {v: k for k, v in class_dict.items()}
 
-threshold = 'dynamic_simple'  # 'static', 'dynamic_simple', 'dynamic'
 class_weights = {0: 0., 1: 0., 2: 0., 3: 0., 4: 0., 5: 0., 6: 0., 7: 0., 8: 0., 9: 0., 10: 0., 11: 0., 12: 0., 13: 0.,
                  14: 0.,
                  15: 0., 16: 0., 17: 0., 18: 0., 19: 0.}
 
-ensemble = True
-max_wh = 7680
+threshold = 'static'  # 'static', 'dynamic_simple', 'dynamic'
+ensemble = True  # Classroom Ensemble toggle
+max_wh = 7680  # Maximum width and height of the image
+epochs = 100  # Number of epochs per teacher-student iteration
+device = 0 if torch.cuda.is_available() else 'cpu'
+if device != 'cpu':
+    torch.cuda.set_device(device)
+labeled_split = 570  # 5717 training images total, 570 - approx. 10%, 1140 - approx. 20%, 2850 - approx. 50%.
 
 
 def setup(size=250):
@@ -165,13 +170,13 @@ def get_threshold(ratio, mid_ratio=1 / 20, min_threshold=0.8, mid_threshold=0.95
     return threshold
 
 
-def student_iteration(teacher):
+def student_iteration(teacher, label):
     # Train student model
     print("New base weights: {}".format(os.path.join(teacher.trainer.save_dir, 'weights', 'last.pt')))
     student = YOLO(os.path.join(teacher.trainer.save_dir, 'weights', 'last.pt'))
-    student.train(data='VOC.yaml', epochs=100, device=0, workers=0, pretrained=True,
+    student.train(data='VOC.yaml', epochs=epochs, device=device, workers=0, pretrained=True,
                   project=home_path('runs/train'),
-                  name='train_dt_10_')  # Change save dir project and name, where save_dir=project/name
+                  name=label)  # Change save dir project and name, where save_dir=project/name
     return student
 
 
@@ -179,7 +184,7 @@ def ensemble_iteration(teacher, label, data):
     # Train student model
     print("New base weights: {}".format(os.path.join(teacher.trainer.save_dir, 'weights', 'last.pt')))
     student = YOLO(os.path.join(teacher.trainer.save_dir, 'weights', 'last.pt'))
-    student.train(data=data, epochs=1, device='cpu', workers=0, pretrained=True,
+    student.train(data=data, epochs=epochs, device=device, workers=0, pretrained=True,
                   project=home_path('runs/train'),
                   name=label)  # Change save dir project and name, where save_dir=project/name
     return student
@@ -221,7 +226,6 @@ def partition_arrays(label_dict):
 
 # Reset data
 reset()
-# torch.cuda.set_device(0)
 
 if ensemble:
     # Load labels
@@ -253,10 +257,10 @@ if ensemble:
 
     # Train teachers
     t1 = YOLO('yolov8n.pt')
-    t1.train(data='VOC1.yaml', epochs=1, device='cpu', workers=0, project=home_path('runs/train'),
+    t1.train(data='VOC1.yaml', epochs=epochs, device=device, workers=0, project=home_path('runs/train'),
              name='teacher_1')  # Change save dir project and name, where save_dir=project/name
     t2 = YOLO('yolov8n.pt')
-    t2.train(data='VOC2.yaml', epochs=1, device='cpu', workers=0, project=home_path('runs/train'),
+    t2.train(data='VOC2.yaml', epochs=epochs, device=device, workers=0, project=home_path('runs/train'),
              name='teacher_2')  # Change save dir project and name, where save_dir=project/name
 
     # Iteratively assign pseudo-labels and train student model
@@ -334,15 +338,15 @@ if ensemble:
 
 else:
     # Setup data subset for semi-supervised learning
-    setup(570)  # 5717 training images total, 570 - approx. 10%, 1140 - approx. 20%, 2850 - approx. 50%.
+    setup(labeled_split)  # 5717 training images total, 570 - approx. 10%, 1140 - approx. 20%, 2850 - approx. 50%.
     # Train teacher model
     teacher = YOLO('yolov8n.pt')
-    teacher.train(data='VOC.yaml', epochs=100, device=0, workers=0, project=home_path('runs/train'),
-                  name='train_dt_10_')  # Change save dir project and name, where save_dir=project/name
+    teacher.train(data='VOC.yaml', epochs=epochs, device=device, workers=0, project=home_path('runs/train'),
+                  name='teacher')  # Change save dir project and name, where save_dir=project/name
 
     # Iteratively assign pseudo-labels and train student model
     n = 3
-    for _ in range(n):
+    for k in range(n):
         if len(os.listdir(scratch_path('data/VOC/train/images'))) == 0:
             break
         results = static_threshold(teacher) if threshold == 'static' else dynamic_threshold_simple(
@@ -356,4 +360,4 @@ else:
                 shutil.move(scratch_path('data/VOC/train/images/' + os.path.basename(result.path)),
                             scratch_path('data/VOC/semi-supervised/images/' + os.path.basename(result.path)))
         print(added, ' images passed the threshold and were added to the training set.')
-        teacher = student_iteration(teacher)
+        teacher = student_iteration(teacher, 'student' + str(k + 1))

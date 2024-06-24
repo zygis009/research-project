@@ -193,6 +193,164 @@ def read_total_image_counts(path):
 
 
 """
+Plotting the mAP results of all models
+"""
+
+# data = {
+#     'Naive Teacher-Student': {},
+#     'Dynamic Thresholds': {},
+#     'Confidence Scaling': {10: {'mAP50': [0.573165526992492, 0.5952304789002284, 0.5882500383051139, 0.5833085781518926],
+#                 'mAP50-95': [0.38448175176055444, 0.41078077542583885, 0.4045730488143018, 0.39945588803870585]},
+#            20: {'mAP50': [0.6243620828262674, 0.629013257162516, 0.6184583139588484, 0.614466034304872],
+#                 'mAP50-95': [0.42757092676409164, 0.43252600620202436, 0.4265507328839376, 0.42238288206387226]},
+#            50: {'mAP50': [0.669517515347205, 0.6682895087462393, 0.6615066841102004, 0.6596646575654495],
+#                 'mAP50-95': [0.4729659578689534, 0.47499442024011146, 0.4671800279987147, 0.4648249543928499]}
+#            },
+#     'Confidence Scaling with Dynamic Thresholds': {10: {'mAP50': [0.5947546770020142, 0.6075508485315467, 0.5982294225985016, 0.5924497072097299],
+#                    'mAP50-95': [0.39911641590986396, 0.41931094855283246, 0.41166501869959865, 0.4066363019151146]},
+#               20: {'mAP50': [0.631294326123829, 0.6373362489174068, 0.6275982866390146, 0.6164106961720439],
+#                    'mAP50-95': [0.43549995633881716, 0.443047683900428, 0.4344307864826412, 0.4255074063329218]},
+#               50: {'mAP50': [0.6711270187114082, 0.6691508948556132, 0.6621263839149235, 0.6519775073370658],
+#                    'mAP50-95': [0.47608235560557943, 0.4721795266343773, 0.4654457220453079, 0.45936602450112396]}
+#               }
+# }
+#
+# for i in [10, 20, 50]:
+#     ts50 = []
+#     ts50_95 = []
+#     dt50 = []
+#     dt50_95 = []
+#     for j in [1, 2, 3, 4]:
+#         ts1, ts2 = read_results_csv('trained_models/ts/ts_' + str(i) + '_' + str(j) + '/results.csv')
+#         dt1, dt2 = read_results_csv('trained_models/dt/train_dt_' + str(i) + '_' + str(j) + '/results.csv')
+#         ts50.append(ts1[-1])
+#         ts50_95.append(ts2[-1])
+#         dt50.append(dt1[-1])
+#         dt50_95.append(dt2[-1])
+#     data['Naive Teacher-Student'][i] = {'mAP50': ts50.copy(), 'mAP50-95': ts50_95.copy()}
+#     data['Dynamic Thresholds'][i] = {'mAP50': dt50.copy(), 'mAP50-95': dt50_95.copy()}
+#
+# xs = ['Teacher', '1st Student', '2nd Student', '3rd Student']
+#
+# for i in [10, 20, 50]:
+#     f1, ax1 = plt.subplots(1)
+#     f2, ax2 = plt.subplots(1)
+#     ax1.set_title('mAP50 Scores at ' + str(i) + '% Labeled Data')
+#     ax2.set_title('mAP50-95 Scores at ' + str(i) + '% Labeled Data')
+#     for key in data:
+#         ys50 = [x*100 for x in data[key][i]['mAP50']]
+#         ys50_95 = [x*100 for x in data[key][i]['mAP50-95']]
+#         ax1.plot(xs, ys50, label=key)
+#         ax2.plot(xs, ys50_95, label=key)
+#     b1, b2 = read_results_csv('trained_models/baseline/results.csv')
+#     ax1.axhline(y=b1[-1] * 100, color='black', linestyle='dashed', label='Baseline')
+#     ax2.axhline(y=b2[-1] * 100, color='black', linestyle='dashed', label='Baseline')
+#     ax1.set_xticks(xs)
+#     ax1.set_xticklabels(xs, rotation=45)
+#     ax2.set_xticks(xs)
+#     ax2.set_xticklabels(xs, rotation=45)
+#     ax1.set_xlabel('Iteration')
+#     ax1.set_ylabel('mAP50')
+#     ax2.set_xlabel('Iteration')
+#     ax2.set_ylabel('mAP50-95')
+#     ax1.set_ylim([49, 72])
+#     ax2.set_ylim([34, 53])
+#     plt.locator_params(axis='y', integer=True)
+#     ax1.legend()
+#     ax2.legend()
+#     f1.tight_layout()
+#     f2.tight_layout()
+#     # f1.show()
+#     # f2.show()
+#     f1.savefig('plots/mAP_results/mAP50_' + str(i) + '.png')
+#     f2.savefig('plots/mAP_results/mAP50_95_' + str(i) + '.png')
+
+"""
+Plotting the torchmetrics mAP results of all models
+"""
+#
+# data = {
+#     'Naive Teacher-Student': {10: {'mAP50': [57.63, 48.58, 45.61, 43.93],
+#                                    'mAP50-95': [38.38, 32.85, 30.77, 29.84]},
+#                               20: {'mAP50': [61.61, 53.68, 51.34, 50.12],
+#                                    'mAP50-95': [41.89, 36.79, 35.09, 34.37]},
+#                               50: {'mAP50': [65.74, 62.99, 61.30, 60.38],
+#                                    'mAP50-95': [46.25, 44.10, 42.72, 41.95]}
+#                               },
+#     'Dynamic Thresholds': {10: {'mAP50': [57.33, 50.51, 47.51, 45.63],
+#                                 'mAP50-95': [38.30, 34.09, 32.02, 30.70]},
+#                            20: {'mAP50': [61.58, 56.32, 54.19, 52.64],
+#                                 'mAP50-95': [41.66, 38.59, 37.13, 36.20]},
+#                            50: {'mAP50': [66.59, 63.54, 61.68, 60.62],
+#                                 'mAP50-95': [46.76, 44.38, 43.16, 42.08]}},
+#     'Confidence Scaling': {10: {'mAP50': [56.02, 57.53, 56.24, 55.55],
+#                                 'mAP50-95': [37.43, 39.23, 38.09, 37.43]},
+#                            20: {'mAP50': [61.54, 61.09, 59.74, 59.26],
+#                                 'mAP50-95': [41.87, 41.52, 40.24, 39.99]},
+#                            50: {'mAP50': [66.43, 65.60, 64.76, 64.14],
+#                                 'mAP50-95': [46.35, 45.97, 45.08, 44.57]}
+#                            },
+#     'Confidence Scaling with Dynamic Thresholds': {10: {'mAP50': [58.31, 58.88, 57.92, 56.68],
+#                                                         'mAP50-95': [38.81, 40.14, 39.02, 38.20]},
+#                                                    20: {'mAP50': [62.06, 61.92, 60.88, 59.93],
+#                                                         'mAP50-95': [42.36, 42.57, 41.42, 40.67]},
+#                                                    50: {'mAP50': [66.10, 65.63, 64.69, 63.75],
+#                                                         'mAP50-95': [46.37, 45.90, 44.99, 44.24]}
+#                                                    },
+#     'Classroom Ensemble': {10: {'mAP50': [58.52, 53.45, 50.99, 50.18],
+#                                 'mAP50-95': [39.13, 36.02, 34.14, 33.34]},
+#                            20: {'mAP50': [61.41, 56.74, 55.44, 54.61],
+#                                 'mAP50-95': [41.64, 38.54, 37.42, 37.06]},
+#                            50: {'mAP50': [65.52, 63.05, 61.54, 61.56],
+#                                 'mAP50-95': [45.82, 43.91, 42.60, 42.64]}
+#                            }
+# }
+# baseline = {'mAP50': 70.58,
+#             'mAP50-95': 51.08}
+#
+# wspace = 0
+# f1 = plt.figure(figsize=(19.2 + 2 * wspace, 4.8))
+# f2 = plt.figure(figsize=(19.2 + 2 * wspace, 4.8))
+# gs1 = f1.add_gridspec(1, 3, wspace=wspace)
+# gs2 = f2.add_gridspec(1, 3, wspace=wspace)
+# mAP50 = gs1.subplots(sharey=True)
+# mAP50_95 = gs2.subplots(sharey=True)
+# handles = []
+# for n, i in enumerate([10, 20, 50]):
+#     xs = ['Teacher', '1st Student', '2nd Student', '3rd Student']
+#     ax1 = mAP50[n]
+#     ax2 = mAP50_95[n]
+#     ax1.set_title(str(i) + '%')
+#     ax2.set_title(str(i) + '%')
+#     for key in data:
+#         ys50 = data[key][i]['mAP50']
+#         ys50_95 = data[key][i]['mAP50-95']
+#         ax1.plot(xs, ys50, label=key)
+#         ax2.plot(xs, ys50_95, label=key)
+#     b1 = baseline['mAP50']
+#     b2 = baseline['mAP50-95']
+#     ax1.axhline(y=b1, color='black', linestyle='dashed', label='Supervised (100% labeled)')
+#     ax2.axhline(y=b2, color='black', linestyle='dashed', label='Supervised (100% labeled)')
+#     ax1.set_xticks(xs)
+#     ax1.set_xticklabels(xs, rotation=45, ha='right')
+#     ax2.set_xticks(xs)
+#     ax2.set_xticklabels(xs, rotation=45, ha='right')
+#     ax1.set_ylim([42, 72])
+#     ax2.set_ylim([28, 52])
+#     handles = ax1.get_legend_handles_labels()[0]
+#
+# f1.suptitle('mAP50 Scores at Different Labeled Data Percentages')
+# f2.suptitle('mAP50-95 Scores at Different Labeled Data Percentages')
+# f1.legend(handles=handles, loc='center right', bbox_to_anchor=(1.1, 0.5), borderaxespad=0.)
+# f2.legend(handles=handles, loc='center right', bbox_to_anchor=(1.1, 0.5), borderaxespad=0.)
+# f1.supxlabel('Iteration', y=-0.11)
+# f1.supylabel('mAP50 (%)', x=0.09)
+# f2.supxlabel('Iteration', y=-0.11)
+# f2.supylabel('mAP50-95 (%)', x=0.09)
+# f1.savefig('plots/mAP_results/all_mAP50.png', bbox_inches='tight')
+# f2.savefig('plots/mAP_results/all_mAP50_95.png', bbox_inches='tight')
+
+"""
 Count added objects for the ensemble experiments
 """
 # for split in ['10', '20', '50']:
@@ -327,43 +485,6 @@ Compute mAP using the torchmetrics library for the ensemble model (and naive tea
 #     pprint(metric.compute())
 
 """
-Practise ensemble pseudo-labeling example
-"""
-
-# m1 = YOLO('trained_models/dt/train_dt_10_1/weights/best.pt')
-# m2 = YOLO('trained_models/dt/train_dt_10_2/weights/best.pt')
-#
-# img = 'bus.jpg'
-# r1 = m1.predict(source=img)
-# r2 = m2.predict(source=img)
-#
-# max_wh = 7680
-# cls1 = [r.boxes.cls for r in r1]
-# boxes1 = [r.boxes.xyxy for r in r1]
-# conf1 = [r.boxes.conf for r in r1]
-# bwhn1 = [r.boxes.xywhn for r in r1]
-# cls2 = [r.boxes.cls for r in r2]
-# boxes2 = [r.boxes.xyxy for r in r2]
-# conf2 = [r.boxes.conf for r in r2]
-# bwhn2 = [r.boxes.xywhn for r in r2]
-#
-# cls = torch.cat((torch.cat(cls1, dim=0), torch.cat(cls2, dim=0)), dim=0)
-# boxes = torch.cat((torch.cat(boxes1, dim=0), torch.cat(boxes2, dim=0)), dim=0)
-# conf = torch.cat((torch.cat(conf1, dim=0), torch.cat(conf2, dim=0)), dim=0)
-# bwhn = torch.cat((torch.cat(bwhn1, dim=0), torch.cat(bwhn2, dim=0)), dim=0)
-#
-# res = torch.cat((cls.unsqueeze(1), bwhn), dim=1)
-#
-# boxes_nms = boxes[:, :4] + cls[:, None] * max_wh
-# i = torchvision.ops.nms(boxes_nms, conf, 0.7)
-# res = res[i]
-# with open('eg-res.txt', 'w') as file:
-#     for t in res:
-#         line = tuple(t.tolist())
-#         file.write(("%g " * len(line)).rstrip() % line)
-#         file.write('\n')
-
-"""
 Teacher-Student vs Confidence Scaling
 """
 # fig, ax = plt.subplots()
@@ -419,7 +540,7 @@ Plotting class count barchart
 # class_names = ['person', 'bird', 'cat', 'cow', 'dog', 'horse', 'sheep', 'aeroplane', 'bicycle', 'boat', 'bus', 'car',
 #                'motorbike', 'train', 'bottle', 'chair', 'dining table', 'potted plant', 'sofa', 'tv/monitor']
 # for i in ['10', '20', '50']:
-#     counts = read_class_counts('added_object_counts/cs_dt-' + i + '-added.log')
+#     counts = read_class_counts('logs/added_object_counts/ts-' + i + '-added.log')
 #     print('{total: ', sum(counts.values()), ', counts: ', counts.values(), '}')
 #     fig, ax = plt.subplots()
 #     ax.bar(counts.keys(), counts.values())
@@ -428,10 +549,10 @@ Plotting class count barchart
 #     ax.set_ylim([0, 5100])
 #     ax.set_xlabel('Classes')
 #     ax.set_ylabel('Object Count')
-#     ax.set_title('Final object counts: Confidence scaling + Dynamic thresholds ' + i + '%')
+#     ax.set_title('Final object counts: Naive Teacher-Student ' + i + '%')
 #     plt.tight_layout()
 #     plt.show()
-#     # plt.savefig('plots/counts/cs_dt_' + i + '_bar.png')
+#     # plt.savefig('plots/counts/ts_' + i + '_bar.png')
 
 """
 Extracting the class counts from the logs
@@ -511,13 +632,13 @@ Plotting the class counts
 """
 # # Data
 # categories = ['Naive\nTeacher-Student', 'Dynamic\nThresholds', 'Confidence\nScaling',
-#               'Confidence Scaling\n+\nDynamic Thresholds']
+#               'Confidence Scaling\n+\nDynamic Thresholds', 'Classroom\nEnsemble']
 # subcategories = ['Teacher', '1st Student', '2nd Student', '3rd Student']
 # # Objects
 # stats = {
-#     '10%': [[1829, 2739, 172, 114], [1942, 2021, 249, 247], [1815, 10216, 435, 92], [1818, 10897, 355, 41]],
-#     '20%': [[3732, 1973, 109, 108], [3579, 1872, 242, 109], [3706, 9619, 288, 47], [3692, 9913, 253, 44]],
-#     '50%': [[8231, 929, 97, 84], [7970, 1360, 117, 82], [8315, 6813, 105, 18], [8123, 6777, 126, 21]]
+#     '10%': [[1829, 2739, 172, 114], [1942, 2021, 249, 247], [1815, 10216, 435, 92], [1818, 10897, 355, 41], [1829, 5147, 270, 118]],
+#     '20%': [[3732, 1973, 109, 108], [3579, 1872, 242, 109], [3706, 9619, 288, 47], [3692, 9913, 253, 44], [3732, 4358, 279, 72]],
+#     '50%': [[8231, 929, 97, 84], [7970, 1360, 117, 82], [8315, 6813, 105, 18], [8123, 6777, 126, 21], [8231, 2366, 203, 82]]
 # }
 # # Images
 # # stats = {
@@ -546,9 +667,9 @@ Plotting the class counts
 #         bottom += [data[k][j] for k in range(len(categories))]
 #
 # ax.set_xlabel('Method')
-# ax.set_ylabel('Added Images')
-# ax.set_title('Added Images per Method')
-# ax.set_xticks(x + (len(categories) - 1) * width / 2)
+# ax.set_ylabel('Added Objects')
+# ax.set_title('Added Objects per Method')
+# ax.set_xticks(x - width + (len(categories) - 1) * width / 2)
 # ax.set_xticklabels(categories)
 #
 # ax.legend(handles, subcategories, title='Iterations')
