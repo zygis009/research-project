@@ -28,6 +28,7 @@ device = 0 if torch.cuda.is_available() else 'cpu'
 if device != 'cpu':
     torch.cuda.set_device(device)
 labeled_split = 570  # 5717 training images total, 570 - approx. 10%, 1140 - approx. 20%, 2850 - approx. 50%.
+iter_num = 3  # Number of student iterations
 
 
 def setup(size=250):
@@ -264,8 +265,7 @@ if ensemble:
              name='teacher_2')  # Change save dir project and name, where save_dir=project/name
 
     # Iteratively assign pseudo-labels and train student model
-    n = 3
-    for k in range(n):
+    for k in range(iter_num):
         if len(os.listdir(scratch_path('data/VOC/train/images'))) == 0:
             break
         r1 = static_threshold(t1)
@@ -345,8 +345,7 @@ else:
                   name='teacher')  # Change save dir project and name, where save_dir=project/name
 
     # Iteratively assign pseudo-labels and train student model
-    n = 3
-    for k in range(n):
+    for k in range(iter_num):
         if len(os.listdir(scratch_path('data/VOC/train/images'))) == 0:
             break
         results = static_threshold(teacher) if threshold == 'static' else dynamic_threshold_simple(
